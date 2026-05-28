@@ -121,7 +121,7 @@ function MessageCard({ message, type = 'slack' }) {
 }
 
 /**
- * Main ISS Client Dashboard with Real Airtable Data
+ * Main ISS Client Dashboard with Real Webhook Data
  */
 export default function App() {
   const [activeTab, setActiveTab] = useState('slack');
@@ -161,21 +161,18 @@ export default function App() {
   };
 
   /**
-   * Fetch real data from Airtable API
+   * Fetch real data from n8n webhook
    */
   useEffect(() => {
-    const fetchAirtableData = async () => {
+    const fetchWebhookData = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        // PLACEHOLDER: Update these with your Airtable credentials
-        const airtableApiKey = process.env.REACT_APP_AIRTABLE_API_KEY || 'YOUR_AIRTABLE_API_KEY_HERE';
-        const airtableBaseId = process.env.REACT_APP_AIRTABLE_BASE_ID || 'appsaxiBsMwwp6SuH';
-        const airtableTableId = process.env.REACT_APP_AIRTABLE_TABLE_ID || 'tbl0AyC04wK8VXSxN';
+        const webhookUrl = process.env.REACT_APP_N8N_WEBHOOK;
         
-        if (!airtableApiKey || airtableApiKey === 'YOUR_AIRTABLE_API_KEY_HERE') {
-          console.warn('REACT_APP_AIRTABLE_API_KEY not set, using demo data');
+        if (!webhookUrl) {
+          console.warn('REACT_APP_N8N_WEBHOOK not set, using demo data');
           setData(demoData);
           setLastSync('N/A (demo mode)');
           setChatMessages([{ 
@@ -186,14 +183,12 @@ export default function App() {
           return;
         }
 
-        console.log('📡 Fetching from Airtable...');
-        const airtableUrl = `https://api.airtable.com/v0/${airtableBaseId}/${airtableTableId}`;
-        
-        const response = await fetch(airtableUrl, {
+        console.log('📡 Fetching from webhook:', webhookUrl);
+        const response = await fetch(webhookUrl, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${airtableApiKey}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
         });
 
@@ -202,30 +197,10 @@ export default function App() {
         }
 
         const json = await response.json();
-        console.log('✅ Airtable response received:', json);
+        console.log('✅ Webhook response received:', json);
 
-        // Transform Airtable records to message format
-        const records = json.records || [];
-        const slackMessages = records.map(record => ({
-          user: record.fields['User'] || 'Unknown',
-          userId: record.fields['User ID'] || record.fields['UserID'] || 'unknown',
-          text: record.fields['Text'] || record.fields['Text1'] || '',
-          timestamp: record.fields['TimeStamp'] || new Date().toISOString(),
-          reactions: record.fields['reactions'] ? record.fields['reactions'].split(', ').filter(r => r) : [],
-          channel: record.fields['channel'] || 'general'
-        }));
-
-        // Sort by timestamp descending (newest first)
-        slackMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-        const webhookData = {
-          slack: {
-            messages: slackMessages,
-            count: slackMessages.length
-          },
-          emails: { messages: [], count: 0 },
-          meetings: { events: [], count: 0 }
-        };
+        // Handle the response structure from n8n
+        const webhookData = Array.isArray(json) ? json[0] : json;
 
         const formattedData = {
           slack: {
@@ -251,23 +226,23 @@ export default function App() {
         }]);
 
       } catch (err) {
-        console.error('❌ Airtable fetch error:', err);
+        console.error('❌ Webhook fetch error:', err);
         setError(err.message);
         setData(demoData);
         setLastSync('Failed - using demo data');
         setChatMessages([{ 
           role: 'claude', 
-          text: '🐕 Woof! Using demo data. Check console for Airtable errors.' 
+          text: '🐕 Woof! Using demo data. Check console for webhook errors.' 
         }]);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAirtableData();
+    fetchWebhookData();
     
     // Optional: Refresh every 5 minutes
-    const interval = setInterval(fetchAirtableData, 5 * 60 * 1000);
+    const interval = setInterval(fetchWebhookData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
