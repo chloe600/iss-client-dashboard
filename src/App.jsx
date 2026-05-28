@@ -1,407 +1,237 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+import React, { useState, useEffect } from 'react';
+import './App.css';
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background: #fafafa;
-  color: #333;
-}
+export default function App() {
+  const [activeTab, setActiveTab] = useState('slack');
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [sendingChat, setSendingChat] = useState(false);
 
-.dashboard {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: #ffffff;
-}
+  // Fetch client data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(process.env.REACT_APP_N8N_WEBHOOK || 'http://localhost:5000/api/client-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientCode: 'ISS' })
+        });
+        const result = await response.json();
+        setData(result);
+        setChatMessages([{ role: 'claude', text: 'Ask me anything about ISS Client!' }]);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+        setData({ slack: { messages: [] }, emails: { messages: [] }, meetings: { events: [] } });
+      } finally {
+        setLoading(false);
+      }
+    };
 
-/* Header */
-.dashboard-header {
-  background: #ffffff;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 1rem 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
+    fetchData();
+    const interval = setInterval(fetchData, 4 * 60 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
-}
+  const handleSendChat = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || !data) return;
 
-.dashboard-header h1 {
-  font-size: 20px;
-  font-weight: 500;
-  color: #1a1a1a;
-}
+    const userMsg = { role: 'user', text: chatInput };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setSendingChat(true);
 
-.header-actions {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: chatInput,
+          clientContext: data
+        })
+      });
+      const { response: claudeResponse } = await response.json();
+      setChatMessages(prev => [...prev, { role: 'claude', text: claudeResponse }]);
+    } catch (err) {
+      console.error('Chat failed:', err);
+      setChatMessages(prev => [...prev, { role: 'claude', text: 'Error connecting to Claude. Please try again.' }]);
+    } finally {
+      setSendingChat(false);
+    }
+  };
 
-.last-updated {
-  font-size: 12px;
-  color: #999;
-}
+  if (loading) return <div className="loading">Loading ISS Client Dashboard...</div>;
+  if (!data) return <div className="error">Failed to load client data</div>;
 
-.refresh-btn {
-  background: #378ADD;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
+  const slackMessages = data.slack?.messages || [];
+  const emails = data.emails?.messages || [];
+  const meetings = data.meetings?.events || [];
 
-.refresh-btn:hover {
-  background: #2a6ab3;
-}
+  return (
+    <div className="dashboard">
+      {/* Header */}
+      <header className="dashboard-header">
+        <div className="header-content">
+          <h1>ISS Client Dashboard</h1>
+          <div className="header-actions">
+            <span className="last-updated">Last updated: {data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Now'}</span>
+            <button className="refresh-btn" onClick={() => window.location.reload()}>
+              ⟳ Refresh
+            </button>
+          </div>
+        </div>
+      </header>
 
-/* Stats Bar */
-.stats-bar {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  background: #e0e0e0;
-  padding: 1px;
-}
+      {/* Stats Bar */}
+      <div className="stats-bar">
+        <div className="stat">
+          <div className="stat-value">{slackMessages.length}</div>
+          <div className="stat-label">Slack messages</div>
+        </div>
+        <div className="stat">
+          <div className="stat-value">{emails.length}</div>
+          <div className="stat-label">Emails</div>
+        </div>
+        <div className="stat">
+          <div className="stat-value">{meetings.length}</div>
+          <div className="stat-label">Meetings</div>
+        </div>
+        <div className="stat">
+          <div className="stat-value">{new Set([...slackMessages.map(m => m.user || ''), ...emails.map(e => e.from || '')]).size}</div>
+          <div className="stat-label">People</div>
+        </div>
+      </div>
 
-.stat {
-  background: #ffffff;
-  padding: 1.5rem;
-  text-align: center;
-}
+      {/* Main Content + Chat */}
+      <div className="main-container">
+        {/* Tabs */}
+        <div className="tabs">
+          {['slack', 'email', 'meetings', 'summary'].map(tab => (
+            <button
+              key={tab}
+              className={`tab ${activeTab === tab ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab === 'slack' && '💬 Slack'}
+              {tab === 'email' && '📧 Email'}
+              {tab === 'meetings' && '📅 Meetings'}
+              {tab === 'summary' && '📊 Summary'}
+            </button>
+          ))}
+        </div>
 
-.stat-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin-bottom: 4px;
-}
+        {/* Content Area */}
+        <div className="content-area">
+          {activeTab === 'slack' && (
+            <div className="messages-list">
+              {slackMessages.length === 0 ? (
+                <p style={{color: '#999'}}>No Slack messages yet. Check back after n8n syncs data.</p>
+              ) : (
+                slackMessages.map((msg, idx) => (
+                  <div key={idx} className="message slack-message">
+                    <div className="message-header">
+                      <span className="message-user">{msg.user || 'Unknown'}</span>
+                      <span className="message-time">{msg.timestamp || 'N/A'}</span>
+                    </div>
+                    <div className="message-text">{msg.text || msg.text}</div>
+                    {msg.reactions && <div className="message-reactions">{msg.reactions.join(' ')}</div>}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
-.stat-label {
-  font-size: 11px;
-  color: #999;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
+          {activeTab === 'email' && (
+            <div className="messages-list">
+              {emails.length === 0 ? (
+                <p style={{color: '#999'}}>No emails yet. Check back after n8n syncs data.</p>
+              ) : (
+                emails.map((email, idx) => (
+                  <div key={idx} className="message email-message">
+                    <div className="message-header">
+                      <span className="message-user">{email.from || 'Unknown'}</span>
+                      <span className="message-time">{email.date || 'N/A'}</span>
+                    </div>
+                    <div className="message-subject">{email.subject || 'No subject'}</div>
+                    <div className="message-text">{email.preview || email.body || 'No preview'}</div>
+                    {email.flagged && <span className="flag">📌 Flagged</span>}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
-/* Tabs */
-.tabs {
-  display: flex;
-  gap: 0;
-  background: #ffffff;
-  border-bottom: 1px solid #e0e0e0;
-  padding: 0 1.5rem;
-}
+          {activeTab === 'meetings' && (
+            <div className="messages-list">
+              {meetings.length === 0 ? (
+                <p style={{color: '#999'}}>No meetings yet. Check back after n8n syncs data.</p>
+              ) : (
+                meetings.map((meeting, idx) => (
+                  <div key={idx} className="message meeting-message">
+                    <div className="message-header">
+                      <span className="message-user">{meeting.title || 'Meeting'}</span>
+                      <span className="message-time">{meeting.date || 'N/A'}</span>
+                    </div>
+                    <div className="message-text">
+                      <strong>Attendees:</strong> {meeting.attendees ? meeting.attendees.join(', ') : 'N/A'}
+                    </div>
+                    {meeting.description && <div className="message-text">{meeting.description}</div>}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
 
-.tab {
-  flex: 0;
-  padding: 12px 16px;
-  border: none;
-  background: transparent;
-  color: #999;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: all 0.2s;
-}
+          {activeTab === 'summary' && (
+            <div className="summary-section">
+              <div className="summary-card">
+                <h3>Activity Summary</h3>
+                <p><strong>{slackMessages.length}</strong> Slack messages | <strong>{emails.length}</strong> Emails | <strong>{meetings.length}</strong> Meetings</p>
+              </div>
+              <div className="summary-card">
+                <h3>Next Steps</h3>
+                <p>Set up n8n workflow to sync Slack and Gmail data. Dashboard will auto-update every 4 hours.</p>
+              </div>
+              <div className="summary-card">
+                <h3>Team Chat</h3>
+                <p>Use the chat below to ask questions about ISS Client. Powered by Claude AI.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
-.tab.active {
-  color: #378ADD;
-  border-bottom-color: #378ADD;
-}
+      {/* Chat Drawer */}
+      <div className="chat-drawer">
+        <div className="chat-header">
+          <h3>💬 Team Chat — Ask about ISS Client</h3>
+        </div>
+        
+        <div className="chat-messages">
+          {chatMessages.map((msg, idx) => (
+            <div key={idx} className={`chat-message ${msg.role}`}>
+              <div className="chat-bubble">{msg.text}</div>
+            </div>
+          ))}
+          {sendingChat && <div className="chat-message claude"><div className="chat-bubble">Thinking...</div></div>}
+        </div>
 
-.tab:hover {
-  color: #333;
-}
-
-/* Main Container */
-.main-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* Content Area */
-.content-area {
-  flex: 1;
-  overflow-y: auto;
-  padding: 1.5rem;
-}
-
-.messages-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.message {
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  border-left: 3px solid #999;
-  border-radius: 4px;
-  padding: 12px;
-  font-size: 13px;
-}
-
-.message.slack-message {
-  border-left-color: #4CAF50;
-}
-
-.message.email-message {
-  border-left-color: #FFC107;
-}
-
-.message.meeting-message {
-  border-left-color: #2196F3;
-}
-
-.message-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.message-user {
-  font-weight: 500;
-  color: #1a1a1a;
-}
-
-.message-time {
-  font-size: 11px;
-  color: #999;
-}
-
-.message-text {
-  color: #333;
-  line-height: 1.5;
-  margin-bottom: 8px;
-}
-
-.message-subject {
-  font-weight: 500;
-  color: #1a1a1a;
-  margin-bottom: 8px;
-}
-
-.message-reactions {
-  font-size: 12px;
-  color: #666;
-}
-
-.flag {
-  font-size: 11px;
-  color: #FFC107;
-  margin-top: 8px;
-  display: inline-block;
-}
-
-/* Summary */
-.summary-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1rem;
-}
-
-.summary-card {
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  padding: 1.5rem;
-}
-
-.summary-card h3 {
-  font-size: 14px;
-  font-weight: 500;
-  color: #1a1a1a;
-  margin-bottom: 12px;
-}
-
-.summary-card p {
-  font-size: 13px;
-  color: #666;
-  line-height: 1.6;
-}
-
-/* Chat Drawer */
-.chat-drawer {
-  height: 280px;
-  background: #ffffff;
-  border-top: 1px solid #e0e0e0;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.04);
-}
-
-.chat-header {
-  padding: 12px 1.5rem;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f9f9f9;
-}
-
-.chat-header h3 {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1a1a1a;
-  margin: 0;
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.chat-message {
-  display: flex;
-  margin-bottom: 8px;
-}
-
-.chat-message.user {
-  justify-content: flex-end;
-}
-
-.chat-message.claude {
-  justify-content: flex-start;
-}
-
-.chat-bubble {
-  max-width: 70%;
-  padding: 8px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.5;
-  word-wrap: break-word;
-}
-
-.chat-message.user .chat-bubble {
-  background: #378ADD;
-  color: white;
-}
-
-.chat-message.claude .chat-bubble {
-  background: #f0f0f0;
-  color: #333;
-  border: 1px solid #e0e0e0;
-}
-
-/* Chat Input Form */
-.chat-input-form {
-  display: flex;
-  gap: 8px;
-  padding: 12px 1.5rem;
-  border-top: 1px solid #e0e0e0;
-  background: #f9f9f9;
-}
-
-.chat-input {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  font-size: 12px;
-  font-family: inherit;
-  background: #ffffff;
-  color: #333;
-  transition: border-color 0.2s;
-}
-
-.chat-input:focus {
-  outline: none;
-  border-color: #378ADD;
-}
-
-.chat-input:disabled {
-  background: #f5f5f5;
-  color: #999;
-}
-
-.chat-send-btn {
-  background: #378ADD;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.chat-send-btn:hover:not(:disabled) {
-  background: #2a6ab3;
-}
-
-.chat-send-btn:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-/* Loading & Error */
-.loading,
-.error {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100vh;
-  font-size: 14px;
-  color: #666;
-}
-
-.error {
-  color: #d32f2f;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .stats-bar {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .header-content {
-    flex-direction: column;
-    gap: 12px;
-    text-align: center;
-  }
-
-  .summary-section {
-    grid-template-columns: 1fr;
-  }
-
-  .chat-bubble {
-    max-width: 90%;
-  }
-}
-
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #999;
+        <form className="chat-input-form" onSubmit={handleSendChat}>
+          <input
+            type="text"
+            placeholder="Ask about the client..."
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            disabled={sendingChat}
+            className="chat-input"
+          />
+          <button type="submit" disabled={sendingChat} className="chat-send-btn">
+            {sendingChat ? '...' : '→'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }
