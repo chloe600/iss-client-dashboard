@@ -1,6 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
+// Animated Chloe Component
+function AnimatedChloe() {
+  return (
+    <svg width="40" height="40" viewBox="0 0 100 100" style={{ animation: 'bounce 2s infinite' }}>
+      {/* Head */}
+      <circle cx="50" cy="35" r="20" fill="#FFB6C1" />
+      
+      {/* Ears */}
+      <circle cx="35" cy="20" r="12" fill="#FFB6C1" />
+      <circle cx="65" cy="20" r="12" fill="#FFB6C1" />
+      
+      {/* Inner ears */}
+      <circle cx="35" cy="22" r="6" fill="#FFC0CB" />
+      <circle cx="65" cy="22" r="6" fill="#FFC0CB" />
+      
+      {/* Eyes */}
+      <circle cx="44" cy="32" r="3" fill="#1a1a2e" />
+      <circle cx="56" cy="32" r="3" fill="#1a1a2e" />
+      
+      {/* Nose */}
+      <circle cx="50" cy="38" r="2.5" fill="#e91e63" />
+      
+      {/* Mouth */}
+      <path d="M 50 38 Q 48 42 45 41" stroke="#1a1a2e" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      <path d="M 50 38 Q 52 42 55 41" stroke="#1a1a2e" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+      
+      {/* Body */}
+      <ellipse cx="50" cy="60" rx="18" ry="22" fill="#FFB6C1" />
+      
+      {/* Fluffy chest */}
+      <ellipse cx="50" cy="65" rx="14" ry="16" fill="#FFC0CB" />
+      
+      {/* Tail */}
+      <path d="M 65 55 Q 80 50 82 35" stroke="#FFB6C1" strokeWidth="8" fill="none" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('slack');
   const [data, setData] = useState(null);
@@ -9,7 +47,6 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
 
-  // Fetch client data
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -20,10 +57,11 @@ export default function App() {
         });
         const result = await response.json();
         setData(result);
-        setChatMessages([{ role: 'claude', text: 'Ask me anything about ISS Client!' }]);
+        setChatMessages([{ role: 'claude', text: '🐕 Woof! Ask me anything about ISS Client!' }]);
       } catch (err) {
         console.error('Failed to fetch data:', err);
         setData({ slack: { messages: [] }, emails: { messages: [] }, meetings: { events: [] } });
+        setChatMessages([{ role: 'claude', text: '🐕 Woof! Ready to help!' }]);
       } finally {
         setLoading(false);
       }
@@ -56,13 +94,13 @@ export default function App() {
       setChatMessages(prev => [...prev, { role: 'claude', text: claudeResponse }]);
     } catch (err) {
       console.error('Chat failed:', err);
-      setChatMessages(prev => [...prev, { role: 'claude', text: 'Error connecting to Claude. Please try again.' }]);
+      setChatMessages(prev => [...prev, { role: 'claude', text: '🐕 Woof! Error. Try again?' }]);
     } finally {
       setSendingChat(false);
     }
   };
 
-  if (loading) return <div className="loading">Loading ISS Client Dashboard...</div>;
+  if (loading) return <div className="loading">🐕 Loading Chloe\'s Dashboard...</div>;
   if (!data) return <div className="error">Failed to load client data</div>;
 
   const slackMessages = data.slack?.messages || [];
@@ -74,7 +112,10 @@ export default function App() {
       {/* Header */}
       <header className="dashboard-header">
         <div className="header-content">
-          <h1>ISS Client Dashboard</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AnimatedChloe />
+            <h1>ISS Client Dashboard</h1>
+          </div>
           <div className="header-actions">
             <span className="last-updated">Last updated: {data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Now'}</span>
             <button className="refresh-btn" onClick={() => window.location.reload()}>
@@ -127,7 +168,7 @@ export default function App() {
           {activeTab === 'slack' && (
             <div className="messages-list">
               {slackMessages.length === 0 ? (
-                <p style={{color: '#999'}}>No Slack messages yet. Check back after n8n syncs data.</p>
+                <p style={{color: '#999'}}>🐕 No Slack messages yet. Chloe is waiting for data!</p>
               ) : (
                 slackMessages.map((msg, idx) => (
                   <div key={idx} className="message slack-message">
@@ -136,7 +177,6 @@ export default function App() {
                       <span className="message-time">{msg.timestamp || 'N/A'}</span>
                     </div>
                     <div className="message-text">{msg.text || msg.text}</div>
-                    {msg.reactions && <div className="message-reactions">{msg.reactions.join(' ')}</div>}
                   </div>
                 ))
               )}
@@ -146,7 +186,7 @@ export default function App() {
           {activeTab === 'email' && (
             <div className="messages-list">
               {emails.length === 0 ? (
-                <p style={{color: '#999'}}>No emails yet. Check back after n8n syncs data.</p>
+                <p style={{color: '#999'}}>🐕 No emails yet. Chloe is sniffing for data!</p>
               ) : (
                 emails.map((email, idx) => (
                   <div key={idx} className="message email-message">
@@ -156,7 +196,6 @@ export default function App() {
                     </div>
                     <div className="message-subject">{email.subject || 'No subject'}</div>
                     <div className="message-text">{email.preview || email.body || 'No preview'}</div>
-                    {email.flagged && <span className="flag">📌 Flagged</span>}
                   </div>
                 ))
               )}
@@ -166,7 +205,7 @@ export default function App() {
           {activeTab === 'meetings' && (
             <div className="messages-list">
               {meetings.length === 0 ? (
-                <p style={{color: '#999'}}>No meetings yet. Check back after n8n syncs data.</p>
+                <p style={{color: '#999'}}>🐕 No meetings yet. Chloe is ready when you are!</p>
               ) : (
                 meetings.map((meeting, idx) => (
                   <div key={idx} className="message meeting-message">
@@ -177,7 +216,6 @@ export default function App() {
                     <div className="message-text">
                       <strong>Attendees:</strong> {meeting.attendees ? meeting.attendees.join(', ') : 'N/A'}
                     </div>
-                    {meeting.description && <div className="message-text">{meeting.description}</div>}
                   </div>
                 ))
               )}
@@ -187,16 +225,16 @@ export default function App() {
           {activeTab === 'summary' && (
             <div className="summary-section">
               <div className="summary-card">
-                <h3>Activity Summary</h3>
-                <p><strong>{slackMessages.length}</strong> Slack messages | <strong>{emails.length}</strong> Emails | <strong>{meetings.length}</strong> Meetings</p>
+                <h3>🐕 Chloe\'s Intelligence</h3>
+                <p><strong>{slackMessages.length}</strong> Slack | <strong>{emails.length}</strong> Emails | <strong>{meetings.length}</strong> Meetings</p>
               </div>
               <div className="summary-card">
                 <h3>Next Steps</h3>
-                <p>Set up n8n workflow to sync Slack and Gmail data. Dashboard will auto-update every 4 hours.</p>
+                <p>Set up n8n workflow to sync Slack and Gmail. Chloe will start learning about ISS Client!</p>
               </div>
               <div className="summary-card">
-                <h3>Team Chat</h3>
-                <p>Use the chat below to ask questions about ISS Client. Powered by Claude AI.</p>
+                <h3>Ask Chloe</h3>
+                <p>Use the chat below to ask questions. Chloe + Claude AI will help!</p>
               </div>
             </div>
           )}
@@ -206,7 +244,7 @@ export default function App() {
       {/* Chat Drawer */}
       <div className="chat-drawer">
         <div className="chat-header">
-          <h3>💬 Team Chat — Ask about ISS Client</h3>
+          <h3>🐕 Chloe\'s Chat — Ask about ISS Client</h3>
         </div>
         
         <div className="chat-messages">
@@ -215,20 +253,20 @@ export default function App() {
               <div className="chat-bubble">{msg.text}</div>
             </div>
           ))}
-          {sendingChat && <div className="chat-message claude"><div className="chat-bubble">Thinking...</div></div>}
+          {sendingChat && <div className="chat-message claude"><div className="chat-bubble">🐕 Thinking...</div></div>}
         </div>
 
         <form className="chat-input-form" onSubmit={handleSendChat}>
           <input
             type="text"
-            placeholder="Ask about the client..."
+            placeholder="Ask Chloe anything..."
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             disabled={sendingChat}
             className="chat-input"
           />
           <button type="submit" disabled={sendingChat} className="chat-send-btn">
-            {sendingChat ? '...' : '→'}
+            {sendingChat ? '...' : '🐕'}
           </button>
         </form>
       </div>
