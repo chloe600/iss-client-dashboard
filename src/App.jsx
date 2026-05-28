@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 
 /**
- * AnimatedChloe Component - Real Pomeranian colors
+ * AnimatedChloe Component - Real Pomeranian colors (Orange & White)
  */
 function AnimatedChloe() {
   return (
@@ -37,54 +37,40 @@ function AnimatedChloe() {
 }
 
 /**
- * LoadingSkeleton Component - Professional loading state
- */
-function LoadingSkeleton() {
-  return (
-    <div style={{ animation: 'pulse 2s infinite' }}>
-      <div style={{ 
-        height: '20px', 
-        background: '#e0e0e0', 
-        borderRadius: '4px', 
-        marginBottom: '12px',
-        width: '80%'
-      }} />
-      <div style={{ 
-        height: '16px', 
-        background: '#f0f0f0', 
-        borderRadius: '4px',
-        width: '60%'
-      }} />
-    </div>
-  );
-}
-
-/**
  * MessageCard - Interactive expandable message
  */
 function MessageCard({ message, type = 'slack' }) {
   const [expanded, setExpanded] = useState(false);
 
   const typeColors = {
-    slack: { border: '#4CAF50', icon: '💬' },
-    email: { border: '#e91e63', icon: '📧' },
-    meeting: { border: '#1a1a2e', icon: '📅' }
+    slack: { border: '#4CAF50', icon: '💬', bg: 'rgba(76, 175, 80, 0.05)' },
+    email: { border: '#e91e63', icon: '📧', bg: 'rgba(233, 30, 99, 0.05)' },
+    meeting: { border: '#1a1a2e', icon: '📅', bg: 'rgba(26, 26, 46, 0.05)' }
   };
 
   const colors = typeColors[type] || typeColors.slack;
+  const textPreview = message.text || message.preview || message.subject || '';
+  const shouldShowExpand = textPreview.length > 120;
 
   return (
     <div 
       className="message"
-      style={{ borderLeftColor: colors.border, cursor: 'pointer' }}
+      style={{ 
+        borderLeftColor: colors.border, 
+        cursor: 'pointer',
+        backgroundColor: colors.bg,
+        transition: 'all 0.2s ease'
+      }}
       onClick={() => setExpanded(!expanded)}
     >
       <div className="message-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span>{colors.icon}</span>
-          <span className="message-user">{message.user || message.from || 'User'}</span>
+          <span className="message-user">
+            {message.user || message.from || 'Unknown User'}
+          </span>
         </div>
-        <span className="message-time" style={{ fontSize: '11px' }}>
+        <span className="message-time" style={{ fontSize: '11px', color: '#999' }}>
           {message.timestamp || message.date || 'N/A'}
         </span>
       </div>
@@ -93,12 +79,33 @@ function MessageCard({ message, type = 'slack' }) {
         marginTop: '8px',
         maxHeight: expanded ? '500px' : '60px',
         overflow: 'hidden',
-        transition: 'max-height 0.3s ease'
+        transition: 'max-height 0.3s ease',
+        lineHeight: '1.4'
       }}>
-        {message.text || message.preview || message.subject}
+        {textPreview}
       </div>
 
-      {(message.text?.length > 100 || message.preview?.length > 100) && (
+      {message.reactions && message.reactions.length > 0 && (
+        <div style={{ 
+          marginTop: '8px', 
+          fontSize: '12px',
+          display: 'flex',
+          gap: '6px',
+          flexWrap: 'wrap'
+        }}>
+          {message.reactions.map((reaction, i) => (
+            <span key={i} style={{ 
+              background: '#f0f0f0', 
+              padding: '2px 6px', 
+              borderRadius: '3px'
+            }}>
+              {reaction}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {shouldShowExpand && (
         <div style={{ 
           fontSize: '11px', 
           color: '#e91e63', 
@@ -114,7 +121,7 @@ function MessageCard({ message, type = 'slack' }) {
 }
 
 /**
- * Main ISS Client Dashboard
+ * Main ISS Client Dashboard with Real Webhook Data
  */
 export default function App() {
   const [activeTab, setActiveTab] = useState('slack');
@@ -125,42 +132,118 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [sendingChat, setSendingChat] = useState(false);
+  const [lastSync, setLastSync] = useState('loading');
 
-  // Demo data for interactive feel
+  // Demo data fallback
   const demoData = {
     slack: {
       messages: [
         { user: 'Emma', text: 'Kickoff meeting went great! Requirements are locked in. Ready to move forward.', timestamp: 'Today 10:15 AM', reactions: ['👍', '🎉'] },
         { user: 'Client PM', text: 'Can we add custom reporting? This would help us track KPIs better.', timestamp: 'Today 10:30 AM', reactions: ['🤔'] },
         { user: 'Client IT', text: 'Data export tool failing on our end, getting 500 errors. Can you help investigate?', timestamp: 'Yesterday 1:30 PM', reactions: ['🚨'] }
-      ]
+      ],
+      count: 3
     },
     emails: {
       messages: [
-        { from: 'client@iss.com', subject: 'Q1 Strategy Discussion', preview: 'Following up on our call about the quarterly roadmap...', date: 'Today 9:00 AM', flagged: false },
-        { from: 'support@iss.com', subject: 'URGENT: Data Export Issue', preview: 'Our team is experiencing issues with the data export functionality...', date: 'Yesterday 2:00 PM', flagged: true }
-      ]
+        { from: 'client@iss.com', subject: 'Q1 Strategy Discussion', preview: 'Following up on our call about the quarterly roadmap...', date: 'Today 9:00 AM' },
+        { from: 'support@iss.com', subject: 'URGENT: Data Export Issue', preview: 'Our team is experiencing issues with the data export functionality...', date: 'Yesterday 2:00 PM' }
+      ],
+      count: 2
     },
     meetings: {
       events: [
         { title: 'ISS Kickoff Call', date: 'Today 2:00 PM', attendees: ['Emma', 'Client PM', 'Client Tech Lead'], description: 'Kickoff meeting to align on project scope and timeline' },
         { title: 'Weekly Sync', date: 'Tomorrow 10:00 AM', attendees: ['Emma', 'Client PM'], description: 'Regular check-in on progress and blockers' }
-      ]
+      ],
+      count: 2
     }
   };
 
+  /**
+   * Fetch real data from n8n webhook
+   */
   useEffect(() => {
-    // Simulate data loading
-    const timer = setTimeout(() => {
-      setData(demoData);
-      setChatMessages([{ 
-        role: 'claude', 
-        text: '🐕 Woof! I\'m Chloe, your AI-powered RevOps analyst. Ask me anything about ISS Client!' 
-      }]);
-      setLoading(false);
-    }, 1500);
+    const fetchWebhookData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const webhookUrl = process.env.REACT_APP_N8N_WEBHOOK;
+        
+        if (!webhookUrl) {
+          console.warn('REACT_APP_N8N_WEBHOOK not set, using demo data');
+          setData(demoData);
+          setLastSync('N/A (demo mode)');
+          setChatMessages([{ 
+            role: 'claude', 
+            text: '🐕 Woof! I\'m Chloe, your AI-powered RevOps analyst. Ask me anything about ISS Client!' 
+          }]);
+          setLoading(false);
+          return;
+        }
 
-    return () => clearTimeout(timer);
+        console.log('📡 Fetching from webhook:', webhookUrl);
+        const response = await fetch(webhookUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const json = await response.json();
+        console.log('✅ Webhook response received:', json);
+
+        // Handle the response structure from n8n
+        const webhookData = Array.isArray(json) ? json[0] : json;
+
+        const formattedData = {
+          slack: {
+            messages: webhookData?.slack?.messages || [],
+            count: webhookData?.slack?.count || 0
+          },
+          emails: {
+            messages: webhookData?.emails?.messages || [],
+            count: webhookData?.emails?.count || 0
+          },
+          meetings: {
+            events: webhookData?.meetings?.events || [],
+            count: webhookData?.meetings?.count || 0
+          }
+        };
+
+        console.log('📊 Formatted data:', formattedData);
+        setData(formattedData);
+        setLastSync(new Date().toLocaleTimeString());
+        setChatMessages([{ 
+          role: 'claude', 
+          text: '🐕 Woof! I\'m Chloe, your AI-powered RevOps analyst. Ask me anything about ISS Client!' 
+        }]);
+
+      } catch (err) {
+        console.error('❌ Webhook fetch error:', err);
+        setError(err.message);
+        setData(demoData);
+        setLastSync('Failed - using demo data');
+        setChatMessages([{ 
+          role: 'claude', 
+          text: '🐕 Woof! Using demo data. Check console for webhook errors.' 
+        }]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWebhookData();
+    
+    // Optional: Refresh every 5 minutes
+    const interval = setInterval(fetchWebhookData, 5 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleSendChat = async (e) => {
@@ -174,17 +257,18 @@ export default function App() {
     // Simulate AI response
     setTimeout(() => {
       const responses = [
-        '🐕 Great question! Based on the data, the main blocker is the data export tool failure. Let\'s prioritize that.',
-        '🐕 Client sentiment is positive overall! They\'re engaged and collaborative. The flagged email shows some urgency though.',
-        '🐕 I see 3 active communications channels and 2 upcoming meetings. The kickoff was successful based on Slack reactions!',
-        '🐕 The custom reporting request shows they want deeper analytics. This could be a great upsell opportunity.'
+        '🐕 Great question! Based on the data, let me analyze the current situation for you.',
+        '🐕 Client sentiment looks positive! They\'re engaged and collaborative.',
+        '🐕 I see active communication across all channels. The team is well-coordinated.',
+        '🐕 Based on the activity, the main priority seems to be getting that data export issue resolved.',
+        '🐕 The custom reporting request could be a great upsell opportunity!'
       ];
       setChatMessages(prev => [...prev, { 
         role: 'claude', 
         text: responses[Math.floor(Math.random() * responses.length)]
       }]);
       setSendingChat(false);
-    }, 1200);
+    }, 1000);
   };
 
   if (loading) {
@@ -193,7 +277,9 @@ export default function App() {
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '48px', marginBottom: '16px', animation: 'bounce 1s infinite' }}>🐕</div>
           <div>Building Chloe's Intelligence Dashboard...</div>
-          <div style={{ fontSize: '12px', marginTop: '12px', opacity: 0.6 }}>Syncing client data • Loading AI insights</div>
+          <div style={{ fontSize: '12px', marginTop: '12px', opacity: 0.6 }}>
+            Syncing Slack messages • Loading client intelligence
+          </div>
         </div>
       </div>
     );
@@ -205,9 +291,17 @@ export default function App() {
 
   // Filter messages based on search
   const filteredData = {
-    slack: slackMessages.filter(m => m.text?.toLowerCase().includes(searchInput.toLowerCase()) || m.user?.toLowerCase().includes(searchInput.toLowerCase())),
-    email: emails.filter(m => m.subject?.toLowerCase().includes(searchInput.toLowerCase()) || m.from?.toLowerCase().includes(searchInput.toLowerCase())),
-    meetings: meetings.filter(m => m.title?.toLowerCase().includes(searchInput.toLowerCase()))
+    slack: slackMessages.filter(m => 
+      (m.text?.toLowerCase() || '').includes(searchInput.toLowerCase()) || 
+      (m.user?.toLowerCase() || '').includes(searchInput.toLowerCase())
+    ),
+    email: emails.filter(m => 
+      (m.subject?.toLowerCase() || '').includes(searchInput.toLowerCase()) || 
+      (m.from?.toLowerCase() || '').includes(searchInput.toLowerCase())
+    ),
+    meetings: meetings.filter(m => 
+      (m.title?.toLowerCase() || '').includes(searchInput.toLowerCase())
+    )
   };
 
   return (
@@ -226,12 +320,14 @@ export default function App() {
           </div>
           <div className="header-actions">
             <span className="last-updated">
-              🟢 Live • Last sync: just now
+              {error ? '🔴 Error' : '🟢 Live'} • Last sync: {lastSync}
             </span>
+            {error && <span style={{ fontSize: '11px', color: '#ffb3b3', marginLeft: '8px' }}>({error})</span>}
             <button 
               className="refresh-btn" 
               onClick={() => window.location.reload()}
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              title="Refresh data"
             >
               <span>⚡</span> Refresh
             </button>
@@ -254,7 +350,9 @@ export default function App() {
           <div className="stat-label">Meetings</div>
         </div>
         <div className="stat" style={{ background: 'linear-gradient(135deg, rgba(78,205,196,0.1) 0%, transparent 100%)' }}>
-          <div className="stat-value">{new Set([...slackMessages.map(m => m.user)]).size}</div>
+          <div className="stat-value">
+            {new Set([...slackMessages.map(m => m.user)]).size}
+          </div>
           <div className="stat-label">Team Members</div>
         </div>
       </div>
@@ -292,7 +390,8 @@ export default function App() {
                 border: '1px solid #e0e0e0',
                 borderRadius: '6px',
                 fontSize: '13px',
-                transition: 'all 0.3s ease'
+                transition: 'all 0.3s ease',
+                boxShadow: searchInput ? '0 0 0 3px rgba(233, 30, 99, 0.1)' : 'none'
               }}
             />
           </div>
@@ -308,7 +407,7 @@ export default function App() {
                 ))
               ) : (
                 <p style={{ color: '#999', textAlign: 'center', marginTop: '2rem' }}>
-                  🐕 {searchInput ? 'No messages match your search' : 'Waiting for Slack sync...'}
+                  🐕 {searchInput ? 'No messages match your search' : 'No Slack messages yet'}
                 </p>
               )}
             </div>
@@ -322,7 +421,7 @@ export default function App() {
                 ))
               ) : (
                 <p style={{ color: '#999', textAlign: 'center', marginTop: '2rem' }}>
-                  🐕 {searchInput ? 'No emails match your search' : 'Waiting for Gmail sync...'}
+                  🐕 {searchInput ? 'No emails match your search' : 'No emails yet'}
                 </p>
               )}
             </div>
@@ -338,16 +437,16 @@ export default function App() {
                       <span className="message-time">{meeting.date}</span>
                     </div>
                     <div style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
-                      <strong>Attendees:</strong> {meeting.attendees.join(', ')}
+                      <strong>Attendees:</strong> {meeting.attendees?.join(', ') || 'N/A'}
                     </div>
-                    <div style={{ marginTop: '8px', fontSize: '13px', color: '#555' }}>
+                    <div style={{ marginTop: '8px', fontSize: '13px', color: '#555', lineHeight: '1.4' }}>
                       {meeting.description}
                     </div>
                   </div>
                 ))
               ) : (
                 <p style={{ color: '#999', textAlign: 'center', marginTop: '2rem' }}>
-                  🐕 No meetings found
+                  🐕 No meetings scheduled
                 </p>
               )}
             </div>
@@ -355,23 +454,34 @@ export default function App() {
 
           {activeTab === 'summary' && (
             <div className="summary-section">
-              <div className="summary-card" style={{ cursor: 'pointer' }}>
-                <h3>📊 Client Activity</h3>
-                <p><strong>{slackMessages.length}</strong> Slack msgs • <strong>{emails.length}</strong> Emails • <strong>{meetings.length}</strong> Meetings</p>
-                <div style={{ marginTop: '12px', fontSize: '12px', color: '#999' }}>Click to expand insights</div>
-              </div>
-              <div className="summary-card" style={{ cursor: 'pointer' }}>
-                <h3>🎯 Key Blockers</h3>
+              <div className="summary-card">
+                <h3>📊 Client Activity Overview</h3>
                 <p>
-                  <strong>1 Critical:</strong> Data export tool failure<br/>
-                  <strong>1 Pending:</strong> Custom reporting request
+                  <strong>{slackMessages.length}</strong> Slack messages • 
+                  <strong style={{ marginLeft: '8px' }}>{emails.length}</strong> Emails • 
+                  <strong style={{ marginLeft: '8px' }}>{meetings.length}</strong> Meetings scheduled
                 </p>
-                <div style={{ marginTop: '12px', fontSize: '12px', color: '#999' }}>Priority: High</div>
+                <div style={{ marginTop: '12px', fontSize: '12px', color: '#999' }}>
+                  Last updated: {lastSync}
+                </div>
               </div>
-              <div className="summary-card" style={{ cursor: 'pointer' }}>
-                <h3>😊 Sentiment</h3>
-                <p><strong>Positive 👍</strong> - Client engaged and collaborative. Some urgency in latest email.</p>
-                <div style={{ marginTop: '12px', fontSize: '12px', color: '#999' }}>Based on tone analysis</div>
+              <div className="summary-card">
+                <h3>🎯 Communication Health</h3>
+                <p>
+                  {slackMessages.length > 0 ? `✅ Active Slack channel with ${slackMessages.length} recent messages` : '⚪ No recent Slack activity'}
+                  <br/>
+                  {emails.length > 0 ? `✅ ${emails.length} active email threads` : '⚪ No recent emails'}
+                  <br/>
+                  {meetings.length > 0 ? `✅ ${meetings.length} scheduled meetings` : '⚪ No upcoming meetings'}
+                </p>
+              </div>
+              <div className="summary-card">
+                <h3>💡 Quick Insights</h3>
+                <p>
+                  • {slackMessages.length > 3 ? 'Client is highly engaged' : 'Client communication ongoing'}<br/>
+                  • Multiple communication channels active<br/>
+                  • Team collaboration is strong
+                </p>
               </div>
             </div>
           )}
